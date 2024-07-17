@@ -41,7 +41,7 @@ func (g *GoToolchain) Go(command string, args ...string) *exec.Cmd {
 
 	// Configure environment for cross build.
 	if g.GOARCH != "" && g.GOARCH != runtime.GOARCH {
-		tool.Env = append(tool.Env, "CGO_ENABLED=1")
+		tool.Env = append(tool.Env, "CGO_ENABLED=0")
 		tool.Env = append(tool.Env, "GOARCH="+g.GOARCH)
 	}
 	if g.GOOS != "" && g.GOOS != runtime.GOOS {
