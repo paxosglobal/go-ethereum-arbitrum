@@ -19,8 +19,8 @@ package stateless
 import (
 	"io"
 
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/paxosglobal/go-ethereum-arbitrum/core/types"
+	"github.com/paxosglobal/go-ethereum-arbitrum/rlp"
 )
 
 // toExtWitness converts our internal witness representation to the consensus one.

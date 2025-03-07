@@ -20,7 +20,7 @@ import (
 	"math/big"
 
 	"github.com/dop251/goja"
-	"github.com/ethereum/go-ethereum/common"
+	"github.com/paxosglobal/go-ethereum-arbitrum/common"
 )
 
 func (jst *jsTracer) CaptureArbitrumTransfer(

@@ -22,7 +22,7 @@ import (
 	"slices"
 	"sort"
 
-	"github.com/ethereum/go-ethereum/common"
+	"github.com/paxosglobal/go-ethereum-arbitrum/common"
 )
 
 // weightedIterator is an iterator with an assigned weight. It is used to prioritise
