@@ -86,6 +86,16 @@ func Estimate(ctx context.Context, call *core.Message, opts *Options, gasCap uin
 			}
 			available.Sub(available, call.Value)
 		}
+		if opts.Config.IsCancun(opts.Header.Number, opts.Header.Time, types.DeserializeHeaderExtraInformation(opts.Header).ArbOSFormatVersion) && len(call.BlobHashes) > 0 {
+			blobGasPerBlob := new(big.Int).SetInt64(params.BlobTxBlobGasPerBlob)
+			blobBalanceUsage := new(big.Int).SetInt64(int64(len(call.BlobHashes)))
+			blobBalanceUsage.Mul(blobBalanceUsage, blobGasPerBlob)
+			blobBalanceUsage.Mul(blobBalanceUsage, call.BlobGasFeeCap)
+			if blobBalanceUsage.Cmp(available) >= 0 {
+				return 0, nil, core.ErrInsufficientFunds
+			}
+			available.Sub(available, blobBalanceUsage)
+		}
 		allowance := new(big.Int).Div(available, feeCap)
 
 		// If the allowance is larger than maximum uint64, skip checking
@@ -213,9 +223,19 @@ func execute(ctx context.Context, call *core.Message, opts *Options, gasLimit ui
 func run(ctx context.Context, call *core.Message, opts *Options) (*core.ExecutionResult, error) {
 	// Assemble the call and the call context
 	var (
+		msgContext = core.NewEVMTxContext(call)
 		evmContext = core.NewEVMBlockContext(opts.Header, opts.Chain, nil)
 		dirtyState = opts.State.Copy()
 	)
+	// Lower the basefee to 0 to avoid breaking EVM
+	// invariants (basefee < feecap).
+	if msgContext.GasPrice.Sign() == 0 {
+		evmContext.BaseFeeInBlock = new(big.Int).Set(evmContext.BaseFee)
+		evmContext.BaseFee = new(big.Int)
+	}
+	if msgContext.BlobFeeCap != nil && msgContext.BlobFeeCap.BitLen() == 0 {
+		evmContext.BlobBaseFee = new(big.Int)
+	}
 	// Monitor the outer context and interrupt the EVM upon cancellation. To avoid
 	// a dangling goroutine until the outer estimation finishes, create an internal
 	// context for the lifetime of this method call.

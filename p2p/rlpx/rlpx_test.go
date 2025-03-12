@@ -31,7 +31,7 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	"github.com/paxosglobal/go-ethereum-arbitrum/crypto"
 	"github.com/paxosglobal/go-ethereum-arbitrum/crypto/ecies"
-	"github.com/paxosglobal/go-ethereum-arbitrum/p2p/simulations/pipes"
+	"github.com/paxosglobal/go-ethereum-arbitrum/p2p/pipes"
 	"github.com/paxosglobal/go-ethereum-arbitrum/rlp"
 	"github.com/stretchr/testify/assert"
 )

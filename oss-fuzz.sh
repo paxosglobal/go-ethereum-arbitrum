@@ -161,6 +161,10 @@ compile_fuzzer github.com/paxosglobal/go-ethereum-arbitrum/tests/fuzzers/bls1238
   $repo/tests/fuzzers/bls12381/bls12381_test.go
 
 compile_fuzzer github.com/paxosglobal/go-ethereum-arbitrum/tests/fuzzers/bls12381 \
+  FuzzCrossG1Mul fuzz_cross_g1_mul\
+  $repo/tests/fuzzers/bls12381/bls12381_test.go
+
+compile_fuzzer github.com/paxosglobal/go-ethereum-arbitrum/tests/fuzzers/bls12381 \
   FuzzG1Mul fuzz_g1_mul\
   $repo/tests/fuzzers/bls12381/bls12381_test.go
 
@@ -170,6 +174,10 @@ compile_fuzzer github.com/paxosglobal/go-ethereum-arbitrum/tests/fuzzers/bls1238
 
 compile_fuzzer github.com/paxosglobal/go-ethereum-arbitrum/tests/fuzzers/bls12381 \
   FuzzG2Add fuzz_g2_add \
+  $repo/tests/fuzzers/bls12381/bls12381_test.go
+
+compile_fuzzer github.com/paxosglobal/go-ethereum-arbitrum/tests/fuzzers/bls12381 \
+  FuzzCrossG2Mul fuzz_cross_g2_mul\
   $repo/tests/fuzzers/bls12381/bls12381_test.go
 
 compile_fuzzer github.com/paxosglobal/go-ethereum-arbitrum/tests/fuzzers/bls12381 \
@@ -205,7 +213,19 @@ compile_fuzzer github.com/paxosglobal/go-ethereum-arbitrum/tests/fuzzers/bls1238
   $repo/tests/fuzzers/bls12381/bls12381_test.go
 
 compile_fuzzer github.com/paxosglobal/go-ethereum-arbitrum/tests/fuzzers/bls12381 \
+  FuzzCrossG2MultiExp fuzz_cross_g2_multiexp \
+  $repo/tests/fuzzers/bls12381/bls12381_test.go
+
+compile_fuzzer github.com/paxosglobal/go-ethereum-arbitrum/tests/fuzzers/bls12381 \
   FuzzCrossPairing fuzz_cross_pairing\
+  $repo/tests/fuzzers/bls12381/bls12381_test.go
+
+compile_fuzzer github.com/paxosglobal/go-ethereum-arbitrum/tests/fuzzers/bls12381 \
+  FuzzG1SubgroupChecks fuzz_g1_subgroup_checks\
+  $repo/tests/fuzzers/bls12381/bls12381_test.go
+
+compile_fuzzer github.com/paxosglobal/go-ethereum-arbitrum/tests/fuzzers/bls12381 \
+  FuzzG2SubgroupChecks fuzz_g2_subgroup_checks\
   $repo/tests/fuzzers/bls12381/bls12381_test.go
 
 compile_fuzzer github.com/paxosglobal/go-ethereum-arbitrum/tests/fuzzers/secp256k1 \

@@ -18,6 +18,7 @@ package types
 
 import (
 	"bytes"
+	"reflect"
 
 	"github.com/paxosglobal/go-ethereum-arbitrum/common"
 	"github.com/paxosglobal/go-ethereum-arbitrum/common/hexutil"
@@ -47,6 +48,12 @@ type Withdrawals []*Withdrawal
 
 // Len returns the length of s.
 func (s Withdrawals) Len() int { return len(s) }
+
+var withdrawalSize = int(reflect.TypeOf(Withdrawal{}).Size())
+
+func (s Withdrawals) Size() int {
+	return withdrawalSize * len(s)
+}
 
 // EncodeIndex encodes the i'th withdrawal to w. Note that this does not check for errors
 // because we assume that *Withdrawal will only ever contain valid withdrawals that were either

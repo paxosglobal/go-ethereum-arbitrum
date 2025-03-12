@@ -25,6 +25,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -35,6 +36,7 @@ import (
 	"github.com/paxosglobal/go-ethereum-arbitrum/common/hexutil"
 	"github.com/paxosglobal/go-ethereum-arbitrum/core/rawdb"
 	"github.com/paxosglobal/go-ethereum-arbitrum/ethdb"
+	"github.com/paxosglobal/go-ethereum-arbitrum/ethdb/memorydb"
 	"github.com/paxosglobal/go-ethereum-arbitrum/ethdb/pebble"
 	"github.com/paxosglobal/go-ethereum-arbitrum/event"
 	"github.com/paxosglobal/go-ethereum-arbitrum/log"
@@ -287,16 +289,6 @@ func (n *Node) openEndpoints() error {
 	return err
 }
 
-// containsLifecycle checks if 'lfs' contains 'l'.
-func containsLifecycle(lfs []Lifecycle, l Lifecycle) bool {
-	for _, obj := range lfs {
-		if obj == l {
-			return true
-		}
-	}
-	return false
-}
-
 // stopServices terminates running services, RPC and p2p networking.
 // It is the inverse of Start.
 func (n *Node) stopServices(running []Lifecycle) error {
@@ -348,15 +340,9 @@ func (n *Node) closeDataDir() {
 	}
 }
 
-// obtainJWTSecret loads the jwt-secret, either from the provided config,
-// or from the default location. If neither of those are present, it generates
-// a new secret and stores to the default location.
-func (n *Node) obtainJWTSecret(cliParam string) ([]byte, error) {
-	fileName := cliParam
-	if len(fileName) == 0 {
-		// no path provided, use default
-		fileName = n.ResolvePath(datadirJWTKey)
-	}
+// ObtainJWTSecret loads the jwt-secret from the provided config. If the file is not
+// present, it generates a new secret and stores to the given location.
+func ObtainJWTSecret(fileName string) ([]byte, error) {
 	// try reading from file
 	if data, err := os.ReadFile(fileName); err == nil {
 		jwtSecret := common.FromHex(strings.TrimSpace(string(data)))
@@ -385,6 +371,18 @@ func (n *Node) obtainJWTSecret(cliParam string) ([]byte, error) {
 // ApplyAPIFilter is the first step in whitelisting given rpc methods inside apiFilter
 func (n *Node) ApplyAPIFilter(apiFilter map[string]bool) {
 	n.apiFilter = apiFilter
+}
+
+// obtainJWTSecret loads the jwt-secret, either from the provided config,
+// or from the default location. If neither of those are present, it generates
+// a new secret and stores to the default location.
+func (n *Node) obtainJWTSecret(cliParam string) ([]byte, error) {
+	fileName := cliParam
+	if len(fileName) == 0 {
+		// no path provided, use default
+		fileName = n.ResolvePath(datadirJWTKey)
+	}
+	return ObtainJWTSecret(fileName)
 }
 
 // startRPC is a helper method to configure all the various RPC endpoints during node
@@ -422,6 +420,12 @@ func (n *Node) startRPC() error {
 		batchItemLimit:         n.config.BatchRequestLimit,
 		batchResponseSizeLimit: n.config.BatchResponseMaxSize,
 		apiFilter:              n.apiFilter,
+	}
+	if n.config.HTTPBodyLimit != 0 {
+		rpcConfig.httpBodyLimit = n.config.HTTPBodyLimit
+	}
+	if n.config.WSReadLimit != 0 {
+		rpcConfig.wsReadLimit = n.config.WSReadLimit
 	}
 
 	initHttp := func(server *httpServer, port int) error {
@@ -469,6 +473,12 @@ func (n *Node) startRPC() error {
 			batchItemLimit:         engineAPIBatchItemLimit,
 			batchResponseSizeLimit: engineAPIBatchResponseSizeLimit,
 			httpBodyLimit:          engineAPIBodyLimit,
+		}
+		if n.config.HTTPBodyLimit != 0 {
+			sharedConfig.httpBodyLimit = n.config.HTTPBodyLimit
+		}
+		if n.config.WSReadLimit != 0 {
+			sharedConfig.wsReadLimit = n.config.WSReadLimit
 		}
 		err := server.enableRPC(allAPIs, httpConfig{
 			CorsAllowedOrigins: DefaultAuthCors,
@@ -590,7 +600,7 @@ func (n *Node) RegisterLifecycle(lifecycle Lifecycle) {
 	if n.state != initializingState {
 		panic("can't register lifecycle on running/stopped node")
 	}
-	if containsLifecycle(n.lifecycles, lifecycle) {
+	if slices.Contains(n.lifecycles, lifecycle) {
 		panic(fmt.Sprintf("attempt to register lifecycle %T more than once", lifecycle))
 	}
 	n.lifecycles = append(n.lifecycles, lifecycle)
@@ -797,7 +807,7 @@ func (n *Node) OpenDatabaseWithFreezerWithExtraOptions(name string, cache, handl
 	var db ethdb.Database
 	var err error
 	if n.config.DataDir == "" {
-		db = rawdb.NewMemoryDatabase()
+		db, err = rawdb.NewDatabaseWithFreezer(memorydb.New(), "", namespace, readonly)
 	} else {
 		db, err = rawdb.Open(rawdb.OpenOptions{
 			Type:               n.config.DBEngine,

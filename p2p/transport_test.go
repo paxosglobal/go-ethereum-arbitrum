@@ -24,7 +24,7 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/paxosglobal/go-ethereum-arbitrum/crypto"
-	"github.com/paxosglobal/go-ethereum-arbitrum/p2p/simulations/pipes"
+	"github.com/paxosglobal/go-ethereum-arbitrum/p2p/pipes"
 )
 
 func TestProtocolHandshake(t *testing.T) {

@@ -20,13 +20,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"testing"
 
 	"github.com/mattn/go-colorable"
 	"github.com/paxosglobal/go-ethereum-arbitrum/common"
 	"github.com/paxosglobal/go-ethereum-arbitrum/log"
-	"golang.org/x/exp/slog"
 )
 
 func TestEncryption(t *testing.T) {

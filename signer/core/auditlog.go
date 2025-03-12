@@ -19,6 +19,7 @@ package core
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"os"
 
 	"github.com/paxosglobal/go-ethereum-arbitrum/common"
@@ -26,7 +27,6 @@ import (
 	"github.com/paxosglobal/go-ethereum-arbitrum/internal/ethapi"
 	"github.com/paxosglobal/go-ethereum-arbitrum/log"
 	"github.com/paxosglobal/go-ethereum-arbitrum/signer/core/apitypes"
-	"golang.org/x/exp/slog"
 )
 
 type AuditLogger struct {

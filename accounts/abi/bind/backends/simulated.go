@@ -20,7 +20,7 @@ import (
 	"context"
 
 	"github.com/paxosglobal/go-ethereum-arbitrum/common"
-	"github.com/paxosglobal/go-ethereum-arbitrum/core"
+	"github.com/paxosglobal/go-ethereum-arbitrum/core/types"
 	"github.com/paxosglobal/go-ethereum-arbitrum/ethclient/simulated"
 )
 
@@ -43,7 +43,7 @@ func (b *SimulatedBackend) Fork(ctx context.Context, parentHash common.Hash) err
 //
 // Deprecated: please use simulated.Backend from package
 // github.com/paxosglobal/go-ethereum-arbitrum/ethclient/simulated instead.
-func NewSimulatedBackend(alloc core.GenesisAlloc, gasLimit uint64) *SimulatedBackend {
+func NewSimulatedBackend(alloc types.GenesisAlloc, gasLimit uint64) *SimulatedBackend {
 	b := simulated.NewBackend(alloc, simulated.WithBlockGasLimit(gasLimit))
 	return &SimulatedBackend{
 		Backend: b,

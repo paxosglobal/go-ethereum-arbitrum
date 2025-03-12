@@ -21,11 +21,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"slices"
 	"time"
 
 	"github.com/paxosglobal/go-ethereum-arbitrum/common"
 	"github.com/paxosglobal/go-ethereum-arbitrum/p2p/enode"
-	"golang.org/x/exp/slices"
 )
 
 const jsonIndent = "    "

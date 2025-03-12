@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"slices"
 	"sync"
 	"time"
 
@@ -31,7 +32,6 @@ import (
 	"github.com/paxosglobal/go-ethereum-arbitrum/p2p/enode"
 	"github.com/paxosglobal/go-ethereum-arbitrum/p2p/enr"
 	"github.com/paxosglobal/go-ethereum-arbitrum/rlp"
-	"golang.org/x/exp/slices"
 )
 
 var (

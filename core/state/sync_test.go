@@ -23,13 +23,15 @@ import (
 	"github.com/holiman/uint256"
 	"github.com/paxosglobal/go-ethereum-arbitrum/common"
 	"github.com/paxosglobal/go-ethereum-arbitrum/core/rawdb"
+	"github.com/paxosglobal/go-ethereum-arbitrum/core/tracing"
 	"github.com/paxosglobal/go-ethereum-arbitrum/core/types"
 	"github.com/paxosglobal/go-ethereum-arbitrum/crypto"
 	"github.com/paxosglobal/go-ethereum-arbitrum/ethdb"
 	"github.com/paxosglobal/go-ethereum-arbitrum/rlp"
 	"github.com/paxosglobal/go-ethereum-arbitrum/trie"
-	"github.com/paxosglobal/go-ethereum-arbitrum/trie/triedb/hashdb"
-	"github.com/paxosglobal/go-ethereum-arbitrum/trie/triedb/pathdb"
+	"github.com/paxosglobal/go-ethereum-arbitrum/triedb"
+	"github.com/paxosglobal/go-ethereum-arbitrum/triedb/hashdb"
+	"github.com/paxosglobal/go-ethereum-arbitrum/triedb/pathdb"
 )
 
 // testAccount is the data associated with an account used by the state tests.
@@ -41,18 +43,18 @@ type testAccount struct {
 }
 
 // makeTestState create a sample test state to test node-wise reconstruction.
-func makeTestState(scheme string) (ethdb.Database, Database, *trie.Database, common.Hash, []*testAccount) {
+func makeTestState(scheme string) (ethdb.Database, Database, *triedb.Database, common.Hash, []*testAccount) {
 	// Create an empty state
-	config := &trie.Config{Preimages: true}
+	config := &triedb.Config{Preimages: true}
 	if scheme == rawdb.PathScheme {
 		config.PathDB = pathdb.Defaults
 	} else {
 		config.HashDB = hashdb.Defaults
 	}
 	db := rawdb.NewMemoryDatabase()
-	nodeDb := trie.NewDatabase(db, config)
-	sdb := NewDatabaseWithNodeDB(db, nodeDb)
-	state, _ := New(types.EmptyRootHash, sdb, nil)
+	nodeDb := triedb.NewDatabase(db, config)
+	sdb := NewDatabase(nodeDb, nil)
+	state, _ := New(types.EmptyRootHash, sdb)
 
 	// Fill it with some arbitrary data
 	var accounts []*testAccount
@@ -60,7 +62,7 @@ func makeTestState(scheme string) (ethdb.Database, Database, *trie.Database, com
 		obj := state.getOrNewStateObject(common.BytesToAddress([]byte{i}))
 		acc := &testAccount{address: common.BytesToAddress([]byte{i})}
 
-		obj.AddBalance(uint256.NewInt(uint64(11 * i)))
+		obj.AddBalance(uint256.NewInt(uint64(11*i)), tracing.BalanceChangeUnspecified)
 		acc.balance = uint256.NewInt(uint64(11 * i))
 
 		obj.SetNonce(uint64(42 * i))
@@ -87,12 +89,12 @@ func makeTestState(scheme string) (ethdb.Database, Database, *trie.Database, com
 // checkStateAccounts cross references a reconstructed state with an expected
 // account array.
 func checkStateAccounts(t *testing.T, db ethdb.Database, scheme string, root common.Hash, accounts []*testAccount) {
-	var config trie.Config
+	var config triedb.Config
 	if scheme == rawdb.PathScheme {
 		config.PathDB = pathdb.Defaults
 	}
 	// Check root availability and state contents
-	state, err := New(root, NewDatabaseWithConfig(db, &config), nil)
+	state, err := New(root, NewDatabase(triedb.NewDatabase(db, &config), nil))
 	if err != nil {
 		t.Fatalf("failed to create state trie at %x: %v", root, err)
 	}
@@ -114,11 +116,11 @@ func checkStateAccounts(t *testing.T, db ethdb.Database, scheme string, root com
 
 // checkStateConsistency checks that all data of a state root is present.
 func checkStateConsistency(db ethdb.Database, scheme string, root common.Hash) error {
-	config := &trie.Config{Preimages: true}
+	config := &triedb.Config{Preimages: true}
 	if scheme == rawdb.PathScheme {
 		config.PathDB = pathdb.Defaults
 	}
-	state, err := New(root, NewDatabaseWithConfig(db, config), nil)
+	state, err := New(root, NewDatabase(triedb.NewDatabase(db, config), nil))
 	if err != nil {
 		return err
 	}
@@ -130,8 +132,8 @@ func checkStateConsistency(db ethdb.Database, scheme string, root common.Hash) e
 
 // Tests that an empty state is not scheduled for syncing.
 func TestEmptyStateSync(t *testing.T) {
-	dbA := trie.NewDatabase(rawdb.NewMemoryDatabase(), nil)
-	dbB := trie.NewDatabase(rawdb.NewMemoryDatabase(), &trie.Config{PathDB: pathdb.Defaults})
+	dbA := triedb.NewDatabase(rawdb.NewMemoryDatabase(), nil)
+	dbB := triedb.NewDatabase(rawdb.NewMemoryDatabase(), &triedb.Config{PathDB: pathdb.Defaults})
 
 	sync := NewStateSync(types.EmptyRootHash, rawdb.NewMemoryDatabase(), nil, dbA.Scheme())
 	if paths, nodes, codes := sync.Missing(1); len(paths) != 0 || len(nodes) != 0 || len(codes) != 0 {

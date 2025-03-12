@@ -26,13 +26,13 @@ import (
 	"github.com/paxosglobal/go-ethereum-arbitrum/core/types"
 	"github.com/paxosglobal/go-ethereum-arbitrum/ethdb"
 	"github.com/paxosglobal/go-ethereum-arbitrum/rlp"
-	"github.com/paxosglobal/go-ethereum-arbitrum/trie"
+	"github.com/paxosglobal/go-ethereum-arbitrum/triedb"
 )
 
 // diskLayer is a low level persistent snapshot built on top of a key-value store.
 type diskLayer struct {
 	diskdb ethdb.KeyValueStore // Key-value store containing the base snapshot
-	triedb *trie.Database      // Trie node cache for reconstruction purposes
+	triedb *triedb.Database    // Trie node cache for reconstruction purposes
 	cache  *fastcache.Cache    // Cache to avoid hitting the disk for direct access
 
 	root  common.Hash // Root hash of the base snapshot
@@ -74,10 +74,18 @@ func (dl *diskLayer) Stale() bool {
 	return dl.stale
 }
 
+// markStale sets the stale flag as true.
+func (dl *diskLayer) markStale() {
+	dl.lock.Lock()
+	defer dl.lock.Unlock()
+
+	dl.stale = true
+}
+
 // Account directly retrieves the account associated with a particular hash in
 // the snapshot slim data format.
-func (dl *diskLayer) Account(hash common.Hash) (*types.SlimAccount, error) {
-	data, err := dl.AccountRLP(hash)
+func (dl *diskLayer) account(hash common.Hash, evenIfStale bool) (*types.SlimAccount, error) {
+	data, err := dl.accountRLP(hash, evenIfStale)
 	if err != nil {
 		return nil, err
 	}
@@ -85,21 +93,19 @@ func (dl *diskLayer) Account(hash common.Hash) (*types.SlimAccount, error) {
 		return nil, nil
 	}
 	account := new(types.SlimAccount)
-	if err := rlp.DecodeBytes(data, account); err != nil {
-		panic(err)
-	}
-	return account, nil
+	err = rlp.DecodeBytes(data, account)
+	return account, err
 }
 
 // AccountRLP directly retrieves the account RLP associated with a particular
 // hash in the snapshot slim data format.
-func (dl *diskLayer) AccountRLP(hash common.Hash) ([]byte, error) {
+func (dl *diskLayer) accountRLP(hash common.Hash, evenIfStale bool) ([]byte, error) {
 	dl.lock.RLock()
 	defer dl.lock.RUnlock()
 
 	// If the layer was flattened into, consider it invalid (any live reference to
 	// the original should be marked as unusable).
-	if dl.stale {
+	if dl.stale && !evenIfStale {
 		return nil, ErrSnapshotStale
 	}
 	// If the layer is being generated, ensure the requested hash has already been
@@ -117,8 +123,13 @@ func (dl *diskLayer) AccountRLP(hash common.Hash) ([]byte, error) {
 		return blob, nil
 	}
 	// Cache doesn't contain account, pull from disk and cache for later
-	blob := rawdb.ReadAccountSnapshot(dl.diskdb, hash)
-	dl.cache.Set(hash[:], blob)
+	blob, err := rawdb.ReadAccountSnapshot(dl.diskdb, hash)
+	if err != nil {
+		return nil, err
+	}
+	if !dl.stale {
+		dl.cache.Set(hash[:], blob)
+	}
 
 	snapshotCleanAccountMissMeter.Mark(1)
 	if n := len(blob); n > 0 {
@@ -127,6 +138,14 @@ func (dl *diskLayer) AccountRLP(hash common.Hash) ([]byte, error) {
 		snapshotCleanAccountInexMeter.Mark(1)
 	}
 	return blob, nil
+}
+
+func (dl *diskLayer) Account(hash common.Hash) (*types.SlimAccount, error) {
+	return dl.account(hash, false)
+}
+
+func (dl *diskLayer) AccountRLP(hash common.Hash) ([]byte, error) {
+	return dl.accountRLP(hash, false)
 }
 
 // Storage directly retrieves the storage data associated with a particular hash,
@@ -157,7 +176,10 @@ func (dl *diskLayer) Storage(accountHash, storageHash common.Hash) ([]byte, erro
 		return blob, nil
 	}
 	// Cache doesn't contain storage slot, pull from disk and cache for later
-	blob := rawdb.ReadStorageSnapshot(dl.diskdb, accountHash, storageHash)
+	blob, err := rawdb.ReadStorageSnapshot(dl.diskdb, accountHash, storageHash)
+	if err != nil {
+		return nil, err
+	}
 	dl.cache.Set(key, blob)
 
 	snapshotCleanStorageMissMeter.Mark(1)
@@ -174,4 +196,19 @@ func (dl *diskLayer) Storage(accountHash, storageHash common.Hash) ([]byte, erro
 // copying everything.
 func (dl *diskLayer) Update(blockHash common.Hash, destructs map[common.Hash]struct{}, accounts map[common.Hash][]byte, storage map[common.Hash]map[common.Hash][]byte) *diffLayer {
 	return newDiffLayer(dl, blockHash, destructs, accounts, storage)
+}
+
+// stopGeneration aborts the state snapshot generation if it is currently running.
+func (dl *diskLayer) stopGeneration() {
+	dl.lock.RLock()
+	generating := dl.genMarker != nil
+	dl.lock.RUnlock()
+	if !generating {
+		return
+	}
+	if dl.genAbort != nil {
+		abort := make(chan *generatorStats)
+		dl.genAbort <- abort
+		<-abort
+	}
 }
