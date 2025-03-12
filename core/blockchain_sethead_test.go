@@ -22,7 +22,7 @@ package core
 import (
 	"fmt"
 	"math/big"
-	"path"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -34,9 +34,9 @@ import (
 	"github.com/paxosglobal/go-ethereum-arbitrum/core/types"
 	"github.com/paxosglobal/go-ethereum-arbitrum/core/vm"
 	"github.com/paxosglobal/go-ethereum-arbitrum/params"
-	"github.com/paxosglobal/go-ethereum-arbitrum/trie"
-	"github.com/paxosglobal/go-ethereum-arbitrum/trie/triedb/hashdb"
-	"github.com/paxosglobal/go-ethereum-arbitrum/trie/triedb/pathdb"
+	"github.com/paxosglobal/go-ethereum-arbitrum/triedb"
+	"github.com/paxosglobal/go-ethereum-arbitrum/triedb/hashdb"
+	"github.com/paxosglobal/go-ethereum-arbitrum/triedb/pathdb"
 )
 
 // rewindTest is a test case for chain rollback upon user request.
@@ -1961,12 +1961,12 @@ func testSetHead(t *testing.T, tt *rewindTest, snapshots bool) {
 
 func testSetHeadWithScheme(t *testing.T, tt *rewindTest, snapshots bool, scheme string) {
 	// It's hard to follow the test case, visualize the input
-	// log.Root().SetHandler(log.LvlFilterHandler(log.LvlTrace, log.StreamHandler(os.Stderr, log.TerminalFormat(true))))
+	// log.SetDefault(log.NewLogger(log.NewTerminalHandlerWithLevel(os.Stderr, log.LevelInfo, true)))
 	// fmt.Println(tt.dump(false))
 
 	// Create a temporary persistent database
 	datadir := t.TempDir()
-	ancient := path.Join(datadir, "ancient")
+	ancient := filepath.Join(datadir, "ancient")
 
 	db, err := rawdb.Open(rawdb.OpenOptions{
 		Directory:         datadir,
@@ -2001,7 +2001,7 @@ func testSetHeadWithScheme(t *testing.T, tt *rewindTest, snapshots bool, scheme 
 		config.SnapshotLimit = 256
 		config.SnapshotWait = true
 	}
-	chain, err := NewBlockChain(db, config, nil, gspec, nil, engine, vm.Config{}, nil, nil)
+	chain, err := NewBlockChain(db, config, nil, gspec, nil, engine, vm.Config{}, nil)
 	if err != nil {
 		t.Fatalf("Failed to create chain: %v", err)
 	}
@@ -2037,21 +2037,25 @@ func testSetHeadWithScheme(t *testing.T, tt *rewindTest, snapshots bool, scheme 
 	}
 	// Reopen the trie database without persisting in-memory dirty nodes.
 	chain.triedb.Close()
-	dbconfig := &trie.Config{}
+	dbconfig := &triedb.Config{}
 	if scheme == rawdb.PathScheme {
 		dbconfig.PathDB = pathdb.Defaults
 	} else {
 		dbconfig.HashDB = hashdb.Defaults
 	}
-	chain.triedb = trie.NewDatabase(chain.db, dbconfig)
-	chain.stateCache = state.NewDatabaseWithNodeDB(chain.db, chain.triedb)
+	chain.triedb = triedb.NewDatabase(chain.db, dbconfig)
+	chain.statedb = state.NewDatabase(chain.triedb, chain.snaps)
 
 	// Force run a freeze cycle
 	type freezer interface {
-		Freeze(threshold uint64) error
+		Freeze() error
 		Ancients() (uint64, error)
 	}
-	db.(freezer).Freeze(tt.freezeThreshold)
+	if tt.freezeThreshold < uint64(tt.canonicalBlocks) {
+		final := uint64(tt.canonicalBlocks) - tt.freezeThreshold
+		chain.SetFinalized(canonblocks[int(final)-1].Header())
+	}
+	db.(freezer).Freeze()
 
 	// Set the simulated pivot block
 	if tt.pivotBlock != nil {

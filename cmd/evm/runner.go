@@ -33,13 +33,14 @@ import (
 	"github.com/paxosglobal/go-ethereum-arbitrum/core"
 	"github.com/paxosglobal/go-ethereum-arbitrum/core/rawdb"
 	"github.com/paxosglobal/go-ethereum-arbitrum/core/state"
+	"github.com/paxosglobal/go-ethereum-arbitrum/core/tracing"
 	"github.com/paxosglobal/go-ethereum-arbitrum/core/vm"
 	"github.com/paxosglobal/go-ethereum-arbitrum/core/vm/runtime"
 	"github.com/paxosglobal/go-ethereum-arbitrum/eth/tracers/logger"
 	"github.com/paxosglobal/go-ethereum-arbitrum/internal/flags"
 	"github.com/paxosglobal/go-ethereum-arbitrum/params"
-	"github.com/paxosglobal/go-ethereum-arbitrum/trie"
-	"github.com/paxosglobal/go-ethereum-arbitrum/trie/triedb/hashdb"
+	"github.com/paxosglobal/go-ethereum-arbitrum/triedb"
+	"github.com/paxosglobal/go-ethereum-arbitrum/triedb/hashdb"
 	"github.com/urfave/cli/v2"
 )
 
@@ -116,7 +117,7 @@ func runCmd(ctx *cli.Context) error {
 	}
 
 	var (
-		tracer      vm.EVMLogger
+		tracer      *tracing.Hooks
 		debugLogger *logger.StructLogger
 		statedb     *state.StateDB
 		chainConfig *params.ChainConfig
@@ -130,7 +131,7 @@ func runCmd(ctx *cli.Context) error {
 		tracer = logger.NewJSONLogger(logconfig, os.Stdout)
 	} else if ctx.Bool(DebugFlag.Name) {
 		debugLogger = logger.NewStructLogger(logconfig)
-		tracer = debugLogger
+		tracer = debugLogger.Hooks()
 	} else {
 		debugLogger = logger.NewStructLogger(logconfig)
 	}
@@ -148,20 +149,19 @@ func runCmd(ctx *cli.Context) error {
 	}
 
 	db := rawdb.NewMemoryDatabase()
-	triedb := trie.NewDatabase(db, &trie.Config{
+	triedb := triedb.NewDatabase(db, &triedb.Config{
 		Preimages: preimages,
 		HashDB:    hashdb.Defaults,
 	})
 	defer triedb.Close()
 	genesis := genesisConfig.MustCommit(db, triedb)
-	sdb := state.NewDatabaseWithNodeDB(db, triedb)
-	statedb, _ = state.New(genesis.Root(), sdb, nil)
+	sdb := state.NewDatabase(triedb, nil)
+	statedb, _ = state.New(genesis.Root(), sdb)
 	chainConfig = genesisConfig.Config
 
 	if ctx.String(SenderFlag.Name) != "" {
 		sender = common.HexToAddress(ctx.String(SenderFlag.Name))
 	}
-	statedb.CreateAccount(sender)
 
 	if ctx.String(ReceiverFlag.Name) != "" {
 		receiver = common.HexToAddress(ctx.String(ReceiverFlag.Name))
@@ -221,6 +221,7 @@ func runCmd(ctx *cli.Context) error {
 		Time:        genesisConfig.Timestamp,
 		Coinbase:    genesisConfig.Coinbase,
 		BlockNumber: new(big.Int).SetUint64(genesisConfig.Number),
+		BaseFee:     genesisConfig.BaseFee,
 		BlobHashes:  blobHashes,
 		BlobBaseFee: blobBaseFee,
 		EVMConfig: vm.Config{
@@ -271,8 +272,17 @@ func runCmd(ctx *cli.Context) error {
 	output, leftOverGas, stats, err := timedExec(bench, execFunc)
 
 	if ctx.Bool(DumpFlag.Name) {
-		statedb.Commit(genesisConfig.Number, true)
-		fmt.Println(string(statedb.Dump(nil)))
+		root, err := statedb.Commit(genesisConfig.Number, true)
+		if err != nil {
+			fmt.Printf("Failed to commit changes %v\n", err)
+			return err
+		}
+		dumpdb, err := state.New(root, sdb)
+		if err != nil {
+			fmt.Printf("Failed to open statedb %v\n", err)
+			return err
+		}
+		fmt.Println(string(dumpdb.Dump(nil)))
 	}
 
 	if ctx.Bool(DebugFlag.Name) {

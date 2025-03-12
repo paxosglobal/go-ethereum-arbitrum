@@ -63,7 +63,7 @@ func newTestBackend(blocks int) *testBackend {
 	return newTestBackendWithGenerator(blocks, false, nil)
 }
 
-// newTestBackend creates a chain with a number of explicitly defined blocks and
+// newTestBackendWithGenerator creates a chain with a number of explicitly defined blocks and
 // wraps it into a mock backend.
 func newTestBackendWithGenerator(blocks int, shanghai bool, generator func(int, *core.BlockGen)) *testBackend {
 	var (
@@ -102,9 +102,9 @@ func newTestBackendWithGenerator(blocks int, shanghai bool, generator func(int, 
 
 	gspec := &core.Genesis{
 		Config: config,
-		Alloc:  core.GenesisAlloc{testAddr: {Balance: big.NewInt(100_000_000_000_000_000)}},
+		Alloc:  types.GenesisAlloc{testAddr: {Balance: big.NewInt(100_000_000_000_000_000)}},
 	}
-	chain, _ := core.NewBlockChain(db, nil, nil, gspec, nil, engine, vm.Config{}, nil, nil)
+	chain, _ := core.NewBlockChain(db, nil, nil, gspec, nil, engine, vm.Config{}, nil)
 
 	_, bs, _ := core.GenerateChainWithGenesis(gspec, engine, blocks, generator)
 	if _, err := chain.InsertChain(bs); err != nil {
@@ -117,7 +117,7 @@ func newTestBackendWithGenerator(blocks int, shanghai bool, generator func(int, 
 	txconfig.Journal = "" // Don't litter the disk with test journals
 
 	pool := legacypool.New(txconfig, chain)
-	txpool, _ := txpool.New(new(big.Int).SetUint64(txconfig.PriceLimit), chain, []txpool.SubPool{pool})
+	txpool, _ := txpool.New(txconfig.PriceLimit, chain, []txpool.SubPool{pool})
 
 	return &testBackend{
 		db:     db,

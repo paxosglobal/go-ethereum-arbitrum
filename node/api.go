@@ -26,6 +26,7 @@ import (
 	"github.com/paxosglobal/go-ethereum-arbitrum/internal/debug"
 	"github.com/paxosglobal/go-ethereum-arbitrum/log"
 	"github.com/paxosglobal/go-ethereum-arbitrum/p2p"
+	"github.com/paxosglobal/go-ethereum-arbitrum/p2p/discover"
 	"github.com/paxosglobal/go-ethereum-arbitrum/p2p/enode"
 	"github.com/paxosglobal/go-ethereum-arbitrum/rpc"
 )
@@ -39,6 +40,9 @@ func (n *Node) apis() []rpc.API {
 		}, {
 			Namespace: "debug",
 			Service:   debug.Handler,
+		}, {
+			Namespace: "debug",
+			Service:   &p2pDebugAPI{n},
 		}, {
 			Namespace: "web3",
 			Service:   &web3API{n},
@@ -144,8 +148,6 @@ func (api *adminAPI) PeerEvents(ctx context.Context) (*rpc.Subscription, error) 
 			case <-sub.Err():
 				return
 			case <-rpcSub.Err():
-				return
-			case <-notifier.Closed():
 				return
 			}
 		}
@@ -334,4 +336,17 @@ func (s *web3API) ClientVersion() string {
 // It assumes the input is hex encoded.
 func (s *web3API) Sha3(input hexutil.Bytes) hexutil.Bytes {
 	return crypto.Keccak256(input)
+}
+
+// p2pDebugAPI provides access to p2p internals for debugging.
+type p2pDebugAPI struct {
+	stack *Node
+}
+
+func (s *p2pDebugAPI) DiscoveryV4Table() [][]discover.BucketNode {
+	disc := s.stack.server.DiscoveryV4()
+	if disc != nil {
+		return disc.TableBuckets()
+	}
+	return nil
 }

@@ -23,13 +23,13 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/gballet/go-verkle"
+	"github.com/ethereum/go-verkle"
 	"github.com/paxosglobal/go-ethereum-arbitrum/cmd/utils"
 	"github.com/paxosglobal/go-ethereum-arbitrum/common"
 	"github.com/paxosglobal/go-ethereum-arbitrum/core/rawdb"
 	"github.com/paxosglobal/go-ethereum-arbitrum/internal/flags"
 	"github.com/paxosglobal/go-ethereum-arbitrum/log"
-	cli "github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v2"
 )
 
 var (

@@ -28,6 +28,7 @@ import (
 	"github.com/paxosglobal/go-ethereum-arbitrum/common"
 	"github.com/paxosglobal/go-ethereum-arbitrum/common/lru"
 	"github.com/paxosglobal/go-ethereum-arbitrum/core/types"
+	"github.com/paxosglobal/go-ethereum-arbitrum/ethdb"
 	"github.com/paxosglobal/go-ethereum-arbitrum/log"
 	"github.com/paxosglobal/go-ethereum-arbitrum/rlp"
 	"github.com/paxosglobal/go-ethereum-arbitrum/trie"
@@ -49,10 +50,7 @@ var (
 	StylusDiscriminant = []byte{stylusEOFMagic, stylusEOFMagicSuffix, stylusEOFVersion}
 )
 
-type ActivatedWasm struct {
-	Asm    []byte
-	Module []byte
-}
+type ActivatedWasm map[ethdb.WasmTarget][]byte
 
 // checks if a valid Stylus prefix is present
 func IsStylusProgram(b []byte) bool {
@@ -76,38 +74,48 @@ func NewStylusPrefix(dictionary byte) []byte {
 	return append(prefix, dictionary)
 }
 
-func (s *StateDB) ActivateWasm(moduleHash common.Hash, asm, module []byte) {
+func (s *StateDB) ActivateWasm(moduleHash common.Hash, asmMap map[ethdb.WasmTarget][]byte) {
 	_, exists := s.arbExtraData.activatedWasms[moduleHash]
 	if exists {
 		return
 	}
-	s.arbExtraData.activatedWasms[moduleHash] = &ActivatedWasm{
-		Asm:    asm,
-		Module: module,
-	}
+	s.arbExtraData.activatedWasms[moduleHash] = asmMap
 	s.journal.append(wasmActivation{
 		moduleHash: moduleHash,
 	})
 }
 
-func (s *StateDB) TryGetActivatedAsm(moduleHash common.Hash) ([]byte, error) {
-	info, exists := s.arbExtraData.activatedWasms[moduleHash]
+func (s *StateDB) TryGetActivatedAsm(target ethdb.WasmTarget, moduleHash common.Hash) ([]byte, error) {
+	asmMap, exists := s.arbExtraData.activatedWasms[moduleHash]
 	if exists {
-		return info.Asm, nil
+		if asm, exists := asmMap[target]; exists {
+			return asm, nil
+		}
 	}
-	return s.db.ActivatedAsm(moduleHash)
+	return s.db.ActivatedAsm(target, moduleHash)
 }
 
-func (s *StateDB) GetActivatedModule(moduleHash common.Hash) []byte {
-	info, exists := s.arbExtraData.activatedWasms[moduleHash]
-	if exists {
-		return info.Module
+func (s *StateDB) TryGetActivatedAsmMap(targets []ethdb.WasmTarget, moduleHash common.Hash) (map[ethdb.WasmTarget][]byte, error) {
+	asmMap := s.arbExtraData.activatedWasms[moduleHash]
+	if asmMap != nil {
+		for _, target := range targets {
+			if _, exists := asmMap[target]; !exists {
+				return nil, fmt.Errorf("newly activated wasms for module %v exist, but they don't contain asm for target %v", moduleHash, target)
+			}
+		}
+		return asmMap, nil
 	}
-	code, err := s.db.ActivatedModule(moduleHash)
-	if err != nil {
-		s.setError(fmt.Errorf("failed to load module for %x: %v", moduleHash, err))
+	var err error
+	asmMap = make(map[ethdb.WasmTarget][]byte, len(targets))
+	for _, target := range targets {
+		asm, dbErr := s.db.ActivatedAsm(target, moduleHash)
+		if dbErr == nil {
+			asmMap[target] = asm
+		} else {
+			err = errors.Join(fmt.Errorf("failed to read activated asm from database for target %v and module %v: %w", target, moduleHash, dbErr), err)
+		}
 	}
-	return code
+	return asmMap, err
 }
 
 func (s *StateDB) GetStylusPages() (uint16, uint16) {
@@ -134,8 +142,17 @@ func (s *StateDB) AddStylusPagesEver(new uint16) {
 	s.arbExtraData.everWasmPages = common.SaturatingUAdd(s.arbExtraData.everWasmPages, new)
 }
 
+// Arbitrum: preserve empty account behavior from old geth and ArbOS versions.
+func (s *StateDB) CreateZombieIfDeleted(addr common.Address) {
+	if s.getStateObject(addr) == nil {
+		if _, destructed := s.stateObjectsDestruct[addr]; destructed {
+			s.createZombie(addr)
+		}
+	}
+}
+
 func NewDeterministic(root common.Hash, db Database) (*StateDB, error) {
-	sdb, err := New(root, db, nil)
+	sdb, err := New(root, db)
 	if err != nil {
 		return nil, err
 	}
@@ -143,17 +160,34 @@ func NewDeterministic(root common.Hash, db Database) (*StateDB, error) {
 	return sdb, nil
 }
 
+func NewRecording(root common.Hash, db Database) (*StateDB, error) {
+	sdb, err := New(root, db)
+	if err != nil {
+		return nil, err
+	}
+	sdb.deterministic = true
+	sdb.recording = true
+	return sdb, nil
+}
+
 func (s *StateDB) Deterministic() bool {
 	return s.deterministic
 }
 
+func (s *StateDB) Recording() bool {
+	return s.recording
+}
+
+var ErrArbTxFilter error = errors.New("internal error")
+
 type ArbitrumExtraData struct {
-	unexpectedBalanceDelta *big.Int                       // total balance change across all accounts
-	userWasms              UserWasms                      // user wasms encountered during execution
-	openWasmPages          uint16                         // number of pages currently open
-	everWasmPages          uint16                         // largest number of pages ever allocated during this tx's execution
-	activatedWasms         map[common.Hash]*ActivatedWasm // newly activated WASMs
+	unexpectedBalanceDelta *big.Int                      // total balance change across all accounts
+	userWasms              UserWasms                     // user wasms encountered during execution
+	openWasmPages          uint16                        // number of pages currently open
+	everWasmPages          uint16                        // largest number of pages ever allocated during this tx's execution
+	activatedWasms         map[common.Hash]ActivatedWasm // newly activated WASMs
 	recentWasms            RecentWasms
+	arbTxFilter            bool
 }
 
 func (s *StateDB) SetArbFinalizer(f func(*ArbitrumExtraData)) {
@@ -233,16 +267,17 @@ func (s *StateDB) StartRecording() {
 	s.arbExtraData.userWasms = make(UserWasms)
 }
 
-func (s *StateDB) RecordProgram(moduleHash common.Hash) {
-	asm, err := s.TryGetActivatedAsm(moduleHash)
+func (s *StateDB) RecordProgram(targets []ethdb.WasmTarget, moduleHash common.Hash) {
+	if len(targets) == 0 {
+		// nothing to record
+		return
+	}
+	asmMap, err := s.TryGetActivatedAsmMap(targets, moduleHash)
 	if err != nil {
-		log.Crit("can't find activated wasm while recording", "modulehash", moduleHash)
+		log.Crit("can't find activated wasm while recording", "modulehash", moduleHash, "err", err)
 	}
 	if s.arbExtraData.userWasms != nil {
-		s.arbExtraData.userWasms[moduleHash] = ActivatedWasm{
-			Asm:    asm,
-			Module: s.GetActivatedModule(moduleHash),
-		}
+		s.arbExtraData.userWasms[moduleHash] = asmMap
 	}
 }
 

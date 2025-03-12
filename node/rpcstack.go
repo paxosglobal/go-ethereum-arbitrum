@@ -19,6 +19,7 @@ package node
 import (
 	"compress/gzip"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -58,6 +59,7 @@ type rpcEndpointConfig struct {
 	batchResponseSizeLimit int
 	apiFilter              map[string]bool
 	httpBodyLimit          int
+	wsReadLimit            int64
 }
 
 type rpcHandler struct {
@@ -305,7 +307,7 @@ func (h *httpServer) enableRPC(apis []rpc.API, config httpConfig) error {
 	defer h.mu.Unlock()
 
 	if h.rpcAllowed() {
-		return fmt.Errorf("JSON-RPC over HTTP is already enabled")
+		return errors.New("JSON-RPC over HTTP is already enabled")
 	}
 
 	// Create RPC server and handler.
@@ -348,7 +350,7 @@ func (h *httpServer) enableWS(apis []rpc.API, config wsConfig) error {
 	defer h.mu.Unlock()
 
 	if h.wsAllowed() {
-		return fmt.Errorf("JSON-RPC over WebSocket is already enabled")
+		return errors.New("JSON-RPC over WebSocket is already enabled")
 	}
 	// Create RPC server and handler.
 	srv := rpc.NewServer()
@@ -362,7 +364,7 @@ func (h *httpServer) enableWS(apis []rpc.API, config wsConfig) error {
 	}
 	h.wsConfig = config
 	h.wsHandler.Store(&rpcHandler{
-		Handler: NewWSHandlerStack(srv.WebsocketHandler(config.Origins), config.jwtSecret),
+		Handler: NewWSHandlerStack(srv.WebsocketHandler(config.Origins, config.wsReadLimit), config.jwtSecret),
 		server:  srv,
 	})
 	return nil
@@ -610,7 +612,7 @@ func newIPCServer(log log.Logger, endpoint string) *ipcServer {
 	return &ipcServer{log: log, endpoint: endpoint}
 }
 
-// Start starts the httpServer's http.Server
+// start starts the httpServer's http.Server
 func (is *ipcServer) start(apis []rpc.API) error {
 	is.mu.Lock()
 	defer is.mu.Unlock()
