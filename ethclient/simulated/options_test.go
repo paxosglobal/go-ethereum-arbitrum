@@ -22,7 +22,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ethereum/go-ethereum"
+	"github.com/paxosglobal/go-ethereum-arbitrum"
 	"github.com/paxosglobal/go-ethereum-arbitrum/core"
 	"github.com/paxosglobal/go-ethereum-arbitrum/core/types"
 	"github.com/paxosglobal/go-ethereum-arbitrum/params"

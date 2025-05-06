@@ -8,7 +8,7 @@ import (
 	"strings"
 	"errors"
 
-	ethereum "github.com/ethereum/go-ethereum"
+	ethereum "github.com/paxosglobal/go-ethereum-arbitrum"
 	"github.com/paxosglobal/go-ethereum-arbitrum/accounts/abi"
 	"github.com/paxosglobal/go-ethereum-arbitrum/accounts/abi/bind"
 	"github.com/paxosglobal/go-ethereum-arbitrum/common"

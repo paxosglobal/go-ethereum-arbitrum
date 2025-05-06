@@ -30,7 +30,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ethereum/go-ethereum"
+	"github.com/paxosglobal/go-ethereum-arbitrum"
 	"github.com/paxosglobal/go-ethereum-arbitrum/common"
 	"github.com/paxosglobal/go-ethereum-arbitrum/common/mclock"
 	"github.com/paxosglobal/go-ethereum-arbitrum/consensus"

@@ -21,7 +21,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/ethereum/go-ethereum"
+	"github.com/paxosglobal/go-ethereum-arbitrum"
 	"github.com/paxosglobal/go-ethereum-arbitrum/common"
 	"github.com/paxosglobal/go-ethereum-arbitrum/core/types"
 	"github.com/paxosglobal/go-ethereum-arbitrum/log"

@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ethereum/go-ethereum"
+	"github.com/paxosglobal/go-ethereum-arbitrum"
 	"github.com/paxosglobal/go-ethereum-arbitrum/accounts"
 	"github.com/paxosglobal/go-ethereum-arbitrum/arbitrum_types"
 	"github.com/paxosglobal/go-ethereum-arbitrum/common"
