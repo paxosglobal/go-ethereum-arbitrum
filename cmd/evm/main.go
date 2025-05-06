@@ -23,17 +23,17 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/ethereum/go-ethereum/cmd/evm/internal/t8ntool"
-	"github.com/ethereum/go-ethereum/core/state"
-	"github.com/ethereum/go-ethereum/core/tracing"
-	"github.com/ethereum/go-ethereum/eth/tracers/logger"
-	"github.com/ethereum/go-ethereum/internal/debug"
-	"github.com/ethereum/go-ethereum/internal/flags"
+	"github.com/paxosglobal/go-ethereum-arbitrum/cmd/evm/internal/t8ntool"
+	"github.com/paxosglobal/go-ethereum-arbitrum/core/state"
+	"github.com/paxosglobal/go-ethereum-arbitrum/core/tracing"
+	"github.com/paxosglobal/go-ethereum-arbitrum/eth/tracers/logger"
+	"github.com/paxosglobal/go-ethereum-arbitrum/internal/debug"
+	"github.com/paxosglobal/go-ethereum-arbitrum/internal/flags"
 	"github.com/urfave/cli/v2"
 
 	// Force-load the tracer engines to trigger registration
-	_ "github.com/ethereum/go-ethereum/eth/tracers/js"
-	_ "github.com/ethereum/go-ethereum/eth/tracers/native"
+	_ "github.com/paxosglobal/go-ethereum-arbitrum/eth/tracers/js"
+	_ "github.com/paxosglobal/go-ethereum-arbitrum/eth/tracers/native"
 )
 
 // Some other nice-to-haves:

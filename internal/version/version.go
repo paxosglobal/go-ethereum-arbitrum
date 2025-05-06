@@ -23,7 +23,7 @@ import (
 	"runtime/debug"
 	"strings"
 
-	"github.com/ethereum/go-ethereum/version"
+	"github.com/paxosglobal/go-ethereum-arbitrum/version"
 )
 
 const ourPath = "github.com/ethereum/go-ethereum" // Path to our module

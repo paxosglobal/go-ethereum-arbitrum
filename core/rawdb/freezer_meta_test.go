@@ -20,7 +20,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/paxosglobal/go-ethereum-arbitrum/rlp"
 )
 
 func TestReadWriteFreezerTableMeta(t *testing.T) {

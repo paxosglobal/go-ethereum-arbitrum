@@ -20,10 +20,10 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/internal/debug"
-	"github.com/ethereum/go-ethereum/internal/flags"
-	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/paxosglobal/go-ethereum-arbitrum/ethclient"
+	"github.com/paxosglobal/go-ethereum-arbitrum/internal/debug"
+	"github.com/paxosglobal/go-ethereum-arbitrum/internal/flags"
+	"github.com/paxosglobal/go-ethereum-arbitrum/rpc"
 	"github.com/urfave/cli/v2"
 )
 
